@@ -179,6 +179,33 @@ public:
         return w[w.size() - 1];
     }
 
+    // this function accumulates the robin's style linear combination
+    IntFp robin_acc(std::vector<IntFp> &in, std::vector<IntFp> &l, std::vector<IntFp> &r, std::vector<IntFp> &o, std::vector<f61> &coeff, uint64_t final_res) {
+        assert(in.size() == nin);
+        assert(l.size() == nx);
+        assert(r.size() == nx);
+        assert(o.size() == nx);
+        assert(coeff.size() == 2*nx+1);
+
+        IntFp acc_res = IntFp(0, PUBLIC);
+
+        int acc_id = 0;
+        std::vector<IntFp> w;
+        for (size_t i = 0; i < nin; i++) w.push_back(in[i]);
+        for (size_t i = 0; i < bank.size(); i++) {
+            if (bank[i].op == OPTYPE::ADD) w.push_back( w[bank[i].l] + w[bank[i].r] );
+            else {
+                acc_res = acc_res + (w[bank[i].l] + l[acc_id].negate()) * coeff[2*acc_id].val;
+                acc_res = acc_res + (w[bank[i].r] + r[acc_id].negate()) * coeff[2*acc_id+1].val;
+                w.push_back( o[acc_id++] );
+            }
+        }
+
+        // put up the output
+        acc_res = acc_res + (w.back() + final_res) * coeff.back().val;
+        return acc_res;
+    }
+
 };
 
 // class Instruction {
