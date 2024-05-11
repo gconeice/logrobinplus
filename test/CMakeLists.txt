@@ -16,14 +16,4 @@ macro (add_test_case_with_run folder _name)
 endmacro()
 
 # Tetst Path ZK
-add_test_case_with_run(pathzk test)
-add_test_case_with_run(pathzk comp_with_pub_cir)
-add_test_case_with_run(pathzk comp_with_pub_cir_opt)
-add_test_case_with_run(pathzk pub_cir)
-
-add_test_case_with_run(pathzk comp_batchman_balance)
-add_test_case_with_run(pathzk comp_batchman_unbalance)
-add_test_case_with_run(pathzk comp_batchman_uniform)
-add_test_case_with_run(pathzk comp_batchman_balance_opt)
-
-add_test_case_with_run(pathzk fine_grain)
+add_test_case_with_run(logrobinplus test)
