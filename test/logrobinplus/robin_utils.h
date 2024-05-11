@@ -109,6 +109,10 @@ public:
     f61 operator*(f61 rhs) && { return rhs *= std::move(*this); }    
 };
 
+struct f61Triple {
+    f61 coef[3];
+};
+
 enum OPTYPE {
     ADD, MUL
 };
@@ -208,6 +212,64 @@ public:
         // put up the output
         acc_res = acc_res + (w.back() + final_res) * coeff.back().val;
         return acc_res;
+    }
+
+    // this function accumulates the robinplus's styple quadratic correlation
+    // this is for P or Alice
+    f61Triple robinplus_acc_P(std::vector<IntFp> &in, std::vector<IntFp> &o, std::vector<f61> &coeff, uint64_t final_res) {
+        assert(in.size() == nin);
+        assert(o.size() == nx);
+        assert(coeff.size() == nx+1);
+        f61Triple res;
+        res.coef[0].val = res.coef[1].val = res.coef[2].val = 0;
+
+        int acc_id = 0;
+        std::vector<IntFp> w;
+        for (size_t i = 0; i < nin; i++) w.push_back(in[i]);
+        for (size_t i = 0; i < bank.size(); i++) {
+            if (bank[i].op == OPTYPE::ADD) w.push_back( w[bank[i].l] + w[bank[i].r] );
+            else {
+                res.coef[2] += coeff[acc_id] * ( f61( HIGH64(w[bank[i].l].value) ) * f61( HIGH64(w[bank[i].r].value) ) + f61::minor( HIGH64(o[acc_id].value) ) );
+                res.coef[1] += coeff[acc_id] * ( f61::minor( HIGH64(w[bank[i].l].value) ) * f61( LOW64(w[bank[i].r].value) ) + f61::minor( HIGH64(w[bank[i].r].value) ) * f61( LOW64(w[bank[i].l].value) ) + f61( LOW64(o[acc_id].value) ) );
+                res.coef[0] += coeff[acc_id] * ( f61( LOW64(w[bank[i].l].value) ) * f61( LOW64(w[bank[i].r].value) ) );
+                w.push_back( o[acc_id++] );
+            }
+        }
+
+        // put up the output
+        IntFp fout = w.back() + final_res;
+        IntFp zero(0, PUBLIC);
+        res.coef[2] += coeff[acc_id] * ( f61( HIGH64(fout.value) ) * f61( HIGH64(fout.value) ) + f61::minor( HIGH64(zero.value) ) );
+        res.coef[1] += coeff[acc_id] * ( f61::minor( HIGH64(fout.value) ) * f61( LOW64(fout.value) ) + f61::minor( HIGH64(fout.value) ) * f61( LOW64(fout.value) ) + f61( LOW64(zero.value) ) );
+        res.coef[0] += coeff[acc_id] * ( f61( LOW64(fout.value) ) * f61( LOW64(fout.value) ) );
+
+        return res;
+    }
+
+    // this function accumulates the robinplus's styple quadratic correlation
+    // this is for V or Bob
+    f61 robinplus_acc_V(std::vector<IntFp> &in, std::vector<IntFp> &o, std::vector<f61> &coeff, uint64_t final_res, f61 delta) {
+        assert(in.size() == nin);
+        assert(o.size() == nx);
+        assert(coeff.size() == nx+1);
+        f61 res = f61::zero();
+
+        int acc_id = 0;
+        std::vector<IntFp> w;
+        for (size_t i = 0; i < nin; i++) w.push_back(in[i]);
+        for (size_t i = 0; i < bank.size(); i++) {
+            if (bank[i].op == OPTYPE::ADD) w.push_back( w[bank[i].l] + w[bank[i].r] );
+            else {
+                res += coeff[acc_id] * ( f61( LOW64(w[bank[i].l].value) ) * f61( LOW64(w[bank[i].r].value) ) + f61( LOW64(o[acc_id].value) ) * delta );
+                w.push_back( o[acc_id++] );
+            }
+        }
+
+        // put up the output
+        IntFp fout = w.back() + final_res;
+        IntFp zero(0, PUBLIC);
+        res += coeff[acc_id] * ( f61( LOW64(fout.value) ) * f61( LOW64(fout.value) ) + f61( LOW64(zero.value) ) * delta );
+        return res;
     }
 
 };
