@@ -45,6 +45,10 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     setup_zk_arith<BoolIO<NetIO>>(ios, threads, party);
     auto init_time = time_from(init_start);
 
+    // obtain delta
+    uint64_t delta = LOW64(ZKFpExec::zk_exec->get_delta());
+	std::cout << "DELTA = " << delta << std::endl;    
+
     // set up randomized disjunctive circuits
     std::random_device::result_type cir_seed;
     if (party == ALICE) {
@@ -58,7 +62,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     // generate random circuits for disjunctive statement
     std::vector<Circuit> cir;
-    for (size_t bid = 0; bid < branch_size; bid++) {
+    for (size_t bid = 0; bid < 1; bid++) {
         cir.push_back(Circuit(nin, nx));
         cir[cir.size()-1].rand_cir(cir_gen);
     }
@@ -69,7 +73,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         std::random_device rd; // obtain a random number from hardware
         auto id_seed = rd();
         auto id_gen = std::mt19937(id_seed);        
-        std::uniform_int_distribution<> distr(0, branch_size-1);
+        std::uniform_int_distribution<> distr(0, 1-1);
         id = distr(id_gen);
     }
 
@@ -94,13 +98,9 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     std::vector<IntFp> com_in;
     for (size_t i = 0; i < nin; i++) com_in.push_back( IntFp(party == ALICE ? win[i].val : 0, ALICE) );
 
-    // Alice commit the l and r
-    std::vector<IntFp> com_l, com_r, com_o;
-    for (size_t i = 0; i < nx; i++) com_l.push_back( IntFp(party == ALICE ? wl[i].val : 0, ALICE) );
-    for (size_t i = 0; i < nx; i++) com_r.push_back( IntFp(party == ALICE ? wr[i].val : 0, ALICE) );
-
-    // Alice and Bob generate o
-    for (size_t i = 0; i < nx; i++) com_o.push_back( com_l[i] * com_r[i] );
+    // Alice commit the o
+    std::vector<IntFp> com_o;
+    for (size_t i = 0; i < nx; i++) com_o.push_back( IntFp(party == ALICE ? wo[i].val : 0, ALICE) );
 
     // Bob issues random challenges via PRG over a seed
     block alpha_seed; 
@@ -112,7 +112,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     }
     PRG prg_alpha(&alpha_seed);
     std::vector<f61> alpha_power;
-    for (size_t i = 0; i < 2*nx+1; i++) {
+    for (size_t i = 0; i < nx+1; i++) {
         block tmptmp;
         prg_alpha.random_block(&tmptmp, 1);
 		uint64_t coeff = LOW64(tmptmp) % PR; 
@@ -120,13 +120,77 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     }
 
     // Go over every single branch
-    std::vector<IntFp> bmac;
-    for (size_t bid = 0; bid < branch_size; bid++) bmac.push_back( cir[bid].robin_acc(com_in, com_l, com_r, com_o, alpha_power, PR - final_res.val) );
+    std::vector<f61Triple> M; // hold by P
+    std::vector<f61> K; // hold by V
+    if (party == ALICE) {
+        for (size_t bid = 0; bid < branch_size; bid++) M.push_back( cir[0].robinplus_acc_P(com_in, com_o, alpha_power, PR - final_res.val) );
+        assert( M[id].coef[2].val == 0 );
+    } else {
+        for (size_t bid = 0; bid < branch_size; bid++) K.push_back( cir[0].robinplus_acc_V(com_in, com_o, alpha_power, PR - final_res.val, f61(delta)) );
+    }
 
-    // prove that the product is 0
+    // Ask P to commit the quardratic term
+    std::vector<IntFp> com_Q;
+    for (size_t bid = 0; bid < branch_size; bid++) com_Q.push_back( IntFp(party == ALICE ? M[bid].coef[2].val : 0, ALICE) );
+
+    // prove that the product of these quadratic coeffs is 0
     IntFp final_prod = IntFp(1, PUBLIC);
-    for (size_t bid = 0; bid < branch_size; bid++) final_prod = final_prod * bmac[bid];
+    for (size_t bid = 0; bid < branch_size; bid++) final_prod = final_prod * com_Q[bid];
     batch_reveal_check_zero(&final_prod, 1);
+
+    // V (Bob) issues random challenge to randomly combine quadratic equation
+    // Bob issues random challenges via PRG over a seed
+    block beta_seed; 
+    if (party == ALICE) {
+		ZKFpExec::zk_exec->recv_data(&beta_seed, sizeof(block));
+    } else {
+        PRG().random_block(&beta_seed, 1);
+        ZKFpExec::zk_exec->send_data(&beta_seed, sizeof(block));
+    }
+    PRG prg_beta(&beta_seed);
+    f61Triple acc_M; acc_M.coef[2] = acc_M.coef[1] = acc_M.coef[0] = f61::zero();
+    f61 acc_K = f61::zero();
+    IntFp acc_Q(0, PUBLIC);
+    if (party == ALICE) {
+        for (size_t i = 0; i < branch_size; i++) {
+            block tmptmp;
+            prg_beta.random_block(&tmptmp, 1);
+            f61 beta_coeff = f61( LOW64(tmptmp) % PR );             
+            acc_Q = acc_Q + com_Q[i] * beta_coeff.val;
+            acc_M.coef[1] += beta_coeff * M[i].coef[1];
+            acc_M.coef[0] += beta_coeff * M[i].coef[0];
+        }
+    } else {
+        for (size_t i = 0; i < branch_size; i++) {
+            block tmptmp;
+            prg_beta.random_block(&tmptmp, 1);
+            f61 beta_coeff = f61( LOW64(tmptmp) % PR );             
+            acc_Q = acc_Q + com_Q[i] * beta_coeff.val;
+            acc_K += beta_coeff * K[i];
+        }
+    }
+
+    // randomized to add ZK
+    //std::vector<IntFp> bdelta;
+    IntFp r2, r1;
+    r2.value = ZKFpExec::zk_exec->get_one_role();
+    r1.value = ZKFpExec::zk_exec->get_one_role();
+
+    acc_Q = acc_Q + r2.negate();
+    if (party == ALICE) {
+        acc_M.coef[1] += f61( LOW64(r2.value) ) + f61::minor( HIGH64(r1.value) );
+        acc_M.coef[0] += f61( LOW64(r1.value) );
+        ZKFpExec::zk_exec->send_data(&acc_M, sizeof(f61Triple));
+    } else {
+        acc_K += f61( LOW64(r2.value) ) * f61(delta) + f61( LOW64(r1.value) );
+        ZKFpExec::zk_exec->recv_data(&acc_M, sizeof(f61Triple));
+    }
+    acc_M.coef[2] = f61( acc_Q.reveal() );
+
+    if (party == BOB) {
+        // cout << (f61(delta) * f61(delta) * acc_M.coef[2] + f61(delta) * acc_M.coef[1] + acc_M.coef[0]).val << ' ' << acc_K.val << std::endl;
+        assert( f61(delta) * f61(delta) * acc_M.coef[2] + f61(delta) * acc_M.coef[1] + acc_M.coef[0] == acc_K );
+    }
 
 	finalize_zk_arith<BoolIO<NetIO>>();
 	auto timeuse = time_from(start);	

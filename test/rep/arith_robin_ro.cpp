@@ -58,7 +58,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     // generate random circuits for disjunctive statement
     std::vector<Circuit> cir;
-    for (size_t bid = 0; bid < branch_size; bid++) {
+    for (size_t bid = 0; bid < 1; bid++) {
         cir.push_back(Circuit(nin, nx));
         cir[cir.size()-1].rand_cir(cir_gen);
     }
@@ -69,7 +69,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         std::random_device rd; // obtain a random number from hardware
         auto id_seed = rd();
         auto id_gen = std::mt19937(id_seed);        
-        std::uniform_int_distribution<> distr(0, branch_size-1);
+        std::uniform_int_distribution<> distr(0, 1-1);
         id = distr(id_gen);
     }
 
@@ -121,7 +121,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     // Go over every single branch
     std::vector<IntFp> bmac;
-    for (size_t bid = 0; bid < branch_size; bid++) bmac.push_back( cir[bid].robin_acc(com_in, com_l, com_r, com_o, alpha_power, PR - final_res.val) );
+    for (size_t bid = 0; bid < branch_size; bid++) bmac.push_back( cir[0].robin_acc(com_in, com_l, com_r, com_o, alpha_power, PR - final_res.val) );
 
     // prove that the product is 0
     IntFp final_prod = IntFp(1, PUBLIC);

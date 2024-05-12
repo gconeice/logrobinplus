@@ -58,7 +58,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     // generate random circuits for disjunctive statement
     std::vector<Circuit> cir;
-    for (size_t bid = 0; bid < branch_size; bid++) {
+    for (size_t bid = 0; bid < 1; bid++) {
         cir.push_back(Circuit(nin, nx));
         cir[cir.size()-1].rand_cir(cir_gen);
     }
@@ -69,7 +69,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         std::random_device rd; // obtain a random number from hardware
         auto id_seed = rd();
         auto id_gen = std::mt19937(id_seed);        
-        std::uniform_int_distribution<> distr(0, branch_size-1);
+        std::uniform_int_distribution<> distr(0, 1-1);
         id = distr(id_gen);
     }
 
@@ -102,26 +102,23 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     // Alice and Bob generate o
     for (size_t i = 0; i < nx; i++) com_o.push_back( com_l[i] * com_r[i] );
 
-    // Bob issues random challenges via PRG over a seed
-    block alpha_seed; 
+    // Bob issues random challanges alpha and parties compute its powers
+    uint64_t alpha;
     if (party == ALICE) {
-		ZKFpExec::zk_exec->recv_data(&alpha_seed, sizeof(block));
+		ZKFpExec::zk_exec->recv_data(&alpha, sizeof(uint64_t));
+        alpha = alpha % PR; // to prevent cheating V
     } else {
-        PRG().random_block(&alpha_seed, 1);
-        ZKFpExec::zk_exec->send_data(&alpha_seed, sizeof(block));
-    }
-    PRG prg_alpha(&alpha_seed);
+		PRG().random_data(&alpha, sizeof(uint64_t));
+		alpha = alpha % PR;
+		ZKFpExec::zk_exec->send_data(&alpha, sizeof(uint64_t));	        
+    }    
     std::vector<f61> alpha_power;
-    for (size_t i = 0; i < 2*nx+1; i++) {
-        block tmptmp;
-        prg_alpha.random_block(&tmptmp, 1);
-		uint64_t coeff = LOW64(tmptmp) % PR; 
-        alpha_power.push_back( f61(coeff) );
-    }
+    alpha_power.push_back(f61().unit());
+    for (size_t i = 0; i < 2*nx; i++) alpha_power.push_back( alpha_power.back() * f61(alpha) );
 
     // Go over every single branch
     std::vector<IntFp> bmac;
-    for (size_t bid = 0; bid < branch_size; bid++) bmac.push_back( cir[bid].robin_acc(com_in, com_l, com_r, com_o, alpha_power, PR - final_res.val) );
+    for (size_t bid = 0; bid < branch_size; bid++) bmac.push_back( cir[0].robin_acc(com_in, com_l, com_r, com_o, alpha_power, PR - final_res.val) );
 
     // prove that the product is 0
     IntFp final_prod = IntFp(1, PUBLIC);

@@ -33,7 +33,7 @@ uint64_t comm2(BoolIO<NetIO> *ios[threads]) {
 
 void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size, size_t nin, size_t nx) {
 
-    // size_t log_branch_size = branch_size;
+    size_t log_branch_size = branch_size;
     branch_size = 1 << branch_size;
 
     // testing communication
@@ -44,6 +44,10 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     auto init_start = clock_start();
     setup_zk_arith<BoolIO<NetIO>>(ios, threads, party);
     auto init_time = time_from(init_start);
+
+    // obtain delta
+    uint64_t delta = LOW64(ZKFpExec::zk_exec->get_delta());
+	std::cout << "DELTA = " << delta << std::endl;
 
     // set up randomized disjunctive circuits
     std::random_device::result_type cir_seed;
@@ -58,7 +62,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     // generate random circuits for disjunctive statement
     std::vector<Circuit> cir;
-    for (size_t bid = 0; bid < branch_size; bid++) {
+    for (size_t bid = 0; bid < 1; bid++) {
         cir.push_back(Circuit(nin, nx));
         cir[cir.size()-1].rand_cir(cir_gen);
     }
@@ -69,7 +73,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         std::random_device rd; // obtain a random number from hardware
         auto id_seed = rd();
         auto id_gen = std::mt19937(id_seed);        
-        std::uniform_int_distribution<> distr(0, branch_size-1);
+        std::uniform_int_distribution<> distr(0, 1-1);
         id = distr(id_gen);
     }
 
@@ -121,12 +125,78 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     // Go over every single branch
     std::vector<IntFp> bmac;
-    for (size_t bid = 0; bid < branch_size; bid++) bmac.push_back( cir[bid].robin_acc(com_in, com_l, com_r, com_o, alpha_power, PR - final_res.val) );
+    for (size_t bid = 0; bid < branch_size; bid++) bmac.push_back( cir[0].robin_acc(com_in, com_l, com_r, com_o, alpha_power, PR - final_res.val) );
 
-    // prove that the product is 0
-    IntFp final_prod = IntFp(1, PUBLIC);
-    for (size_t bid = 0; bid < branch_size; bid++) final_prod = final_prod * bmac[bid];
-    batch_reveal_check_zero(&final_prod, 1);
+    // prove that bmac[id] is 0
+
+    // Alice commits to id_i for each decomposied bit
+    std::vector<IntFp> com_id;
+    for (size_t tmp_id = id, i = 0; i < log_branch_size; i++, tmp_id >>= 1) com_id.push_back( IntFp(tmp_id%2, ALICE) );
+
+    // Alice proves to Bob that the committed values is {0,1}^*
+    prove01vector_ro(party, com_id, f61(delta));
+
+    // Alice and Bob prepare [\delta]
+    std::vector<IntFp> bdelta;
+    for (size_t i = 0; i < log_branch_size; i++) {
+        IntFp tmp;
+        tmp.value = ZKFpExec::zk_exec->get_one_role();
+        bdelta.push_back( tmp );
+    }
+
+    // Alice prepares the coefficients for the final polynomial
+    std::vector<IntFp> poly_coeff;
+    if (party == ALICE) {
+        std::vector<f61> final_acc; 
+        for (size_t i = 0; i < log_branch_size+1; i++) final_acc.push_back( f61::zero() );
+        std::vector<f61> tmp_acc; tmp_acc.push_back( f61::unit() );
+        for (size_t i = 0; i < log_branch_size; i++) tmp_acc.push_back( f61::zero() );
+        compPcoeff(0, id, 0, bdelta, bmac, final_acc, tmp_acc);
+        assert(final_acc[log_branch_size].val == 0);
+        for (size_t i = 0; i < log_branch_size; i++) poly_coeff.push_back( IntFp(final_acc[i].val, ALICE) );
+    } else {
+        for (size_t i = 0; i < log_branch_size; i++) poly_coeff.push_back( IntFp(0, ALICE) );
+    }
+
+    // Bob issues \Lambda to evaluate the polynomial
+    f61 Lambda;
+    if (party == ALICE) {
+        uint64_t tmp;
+		ZKFpExec::zk_exec->recv_data(&tmp, sizeof(uint64_t));
+        tmp = tmp % PR; // to prevent cheating V
+        Lambda = f61(tmp);
+    } else {
+        uint64_t tmp;
+		PRG().random_data(&tmp, sizeof(uint64_t));
+		tmp = tmp % PR;
+		ZKFpExec::zk_exec->send_data(&tmp, sizeof(uint64_t));	        
+        Lambda = f61(tmp);
+    }    
+
+    // Alice opens the second row of the path mat
+    std::vector<f61> pathmat_row;
+    for (size_t i = 0; i < log_branch_size; i++) {
+        IntFp tmp = com_id[i] * Lambda.val + bdelta[i];
+        pathmat_row.push_back( f61( tmp.reveal() ) );
+    }
+
+    // Both parties expand the pathmat
+    std::vector<f61> expand_vec(branch_size);
+    expand_pathmat(0, 0, f61::unit(), pathmat_row, expand_vec, Lambda);
+
+    // accumulate using two ways
+    IntFp acc1(0, PUBLIC);
+    IntFp acc2(0, PUBLIC);
+    for (size_t i = 0; i < branch_size; i++) acc1 = acc1 + ( bmac[i] * expand_vec[i].val );
+    f61 Lambda_pow = f61::unit();
+    for (size_t i = 0; i < log_branch_size; i++) {
+        acc2 = acc2 + poly_coeff[i] * Lambda_pow.val;
+        Lambda_pow *= Lambda;
+    }
+
+    acc1 = acc1 + acc2.negate();
+
+    batch_reveal_check_zero(&acc1, 1);    
 
 	finalize_zk_arith<BoolIO<NetIO>>();
 	auto timeuse = time_from(start);	

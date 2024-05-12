@@ -33,7 +33,6 @@ uint64_t comm2(BoolIO<NetIO> *ios[threads]) {
 
 void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size, size_t nin, size_t nx) {
 
-    // size_t log_branch_size = branch_size;
     branch_size = 1 << branch_size;
 
     // testing communication
@@ -63,16 +62,6 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         cir[cir.size()-1].rand_cir(cir_gen);
     }
 
-    // for P to generate a random active index
-    size_t id = 0;
-    if (party == ALICE) {
-        std::random_device rd; // obtain a random number from hardware
-        auto id_seed = rd();
-        auto id_gen = std::mt19937(id_seed);        
-        std::uniform_int_distribution<> distr(0, branch_size-1);
-        id = distr(id_gen);
-    }
-
     // for P to generate a random witness
     f61 final_res;
     std::vector<f61> win, wl, wr, wo;
@@ -82,7 +71,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         std::random_device rd; // obtain a random number from hardware
         auto wit_seed = rd();
         auto wit_gen = std::mt19937(wit_seed);
-        final_res = cir[id].f61_gen_wit(wit_gen, win, wl, wr, wo);
+        final_res = cir[0].f61_gen_wit(wit_gen, win, wl, wr, wo);
         ZKFpExec::zk_exec->send_data(&final_res, sizeof(f61));
     } else {
         ZKFpExec::zk_exec->recv_data(&final_res, sizeof(f61));
@@ -94,39 +83,10 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     std::vector<IntFp> com_in;
     for (size_t i = 0; i < nin; i++) com_in.push_back( IntFp(party == ALICE ? win[i].val : 0, ALICE) );
 
-    // Alice commit the l and r
-    std::vector<IntFp> com_l, com_r, com_o;
-    for (size_t i = 0; i < nx; i++) com_l.push_back( IntFp(party == ALICE ? wl[i].val : 0, ALICE) );
-    for (size_t i = 0; i < nx; i++) com_r.push_back( IntFp(party == ALICE ? wr[i].val : 0, ALICE) );
+    IntFp com_out = cir[0].f61_zk_eval(com_in);
 
-    // Alice and Bob generate o
-    for (size_t i = 0; i < nx; i++) com_o.push_back( com_l[i] * com_r[i] );
-
-    // Bob issues random challenges via PRG over a seed
-    block alpha_seed; 
-    if (party == ALICE) {
-		ZKFpExec::zk_exec->recv_data(&alpha_seed, sizeof(block));
-    } else {
-        PRG().random_block(&alpha_seed, 1);
-        ZKFpExec::zk_exec->send_data(&alpha_seed, sizeof(block));
-    }
-    PRG prg_alpha(&alpha_seed);
-    std::vector<f61> alpha_power;
-    for (size_t i = 0; i < 2*nx+1; i++) {
-        block tmptmp;
-        prg_alpha.random_block(&tmptmp, 1);
-		uint64_t coeff = LOW64(tmptmp) % PR; 
-        alpha_power.push_back( f61(coeff) );
-    }
-
-    // Go over every single branch
-    std::vector<IntFp> bmac;
-    for (size_t bid = 0; bid < branch_size; bid++) bmac.push_back( cir[bid].robin_acc(com_in, com_l, com_r, com_o, alpha_power, PR - final_res.val) );
-
-    // prove that the product is 0
-    IntFp final_prod = IntFp(1, PUBLIC);
-    for (size_t bid = 0; bid < branch_size; bid++) final_prod = final_prod * bmac[bid];
-    batch_reveal_check_zero(&final_prod, 1);
+    com_out = com_out + (PR - final_res.val);
+    batch_reveal_check_zero(&com_out, 1);
 
 	finalize_zk_arith<BoolIO<NetIO>>();
 	auto timeuse = time_from(start);	

@@ -42,7 +42,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     // initial zk exec
     auto init_start = clock_start();
-    setup_zk_arith<BoolIO<NetIO>>(ios, threads, party);
+    setup_zk_bool<BoolIO<NetIO>>(ios, threads, party);
     auto init_time = time_from(init_start);
 
     // set up randomized disjunctive circuits
@@ -50,15 +50,16 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     if (party == ALICE) {
         std::random_device rd; // obtain a random number from hardware
         cir_seed = rd();
-        ZKFpExec::zk_exec->send_data(&cir_seed, sizeof(std::random_device::result_type));
+        ios[0]->send_data(&cir_seed, sizeof(std::random_device::result_type));
+        ios[0]->flush();
     } else {
-        ZKFpExec::zk_exec->recv_data(&cir_seed, sizeof(std::random_device::result_type));
+        ios[0]->recv_data(&cir_seed, sizeof(std::random_device::result_type));
     }
     auto cir_gen = std::mt19937(cir_seed);
 
     // generate random circuits for disjunctive statement
     std::vector<Circuit> cir;
-    for (size_t bid = 0; bid < branch_size; bid++) {
+    for (size_t bid = 0; bid < 1; bid++) {
         cir.push_back(Circuit(nin, nx));
         cir[cir.size()-1].rand_cir(cir_gen);
     }
@@ -69,66 +70,82 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         std::random_device rd; // obtain a random number from hardware
         auto id_seed = rd();
         auto id_gen = std::mt19937(id_seed);        
-        std::uniform_int_distribution<> distr(0, branch_size-1);
+        std::uniform_int_distribution<> distr(0, 1-1);
         id = distr(id_gen);
     }
 
     // for P to generate a random witness
-    f61 final_res;
-    std::vector<f61> win, wl, wr, wo;
+    f2 final_res;
+    std::vector<f2> win, wl, wr, wo;
 
     // test for a single circuit now
     if (party == ALICE) {
         std::random_device rd; // obtain a random number from hardware
         auto wit_seed = rd();
         auto wit_gen = std::mt19937(wit_seed);
-        final_res = cir[id].f61_gen_wit(wit_gen, win, wl, wr, wo);
-        ZKFpExec::zk_exec->send_data(&final_res, sizeof(f61));
+        final_res = cir[id].f2_gen_wit(wit_gen, win, wl, wr, wo);
+        ios[0]->send_data(&final_res, sizeof(f2));
+        ios[0]->flush();
     } else {
-        ZKFpExec::zk_exec->recv_data(&final_res, sizeof(f61));
+        ios[0]->recv_data(&final_res, sizeof(f2));
     }
+
+    block delta = get_bool_delta<BoolIO<NetIO>>(party);
 
     auto start = clock_start();
 
     // Alice commit the input
-    std::vector<IntFp> com_in;
-    for (size_t i = 0; i < nin; i++) com_in.push_back( IntFp(party == ALICE ? win[i].val : 0, ALICE) );
+    std::vector<Bit> com_in;
+    for (size_t i = 0; i < nin; i++) com_in.push_back( Bit(party == ALICE ? win[i].val : 0, ALICE) );
 
     // Alice commit the l and r
-    std::vector<IntFp> com_l, com_r, com_o;
-    for (size_t i = 0; i < nx; i++) com_l.push_back( IntFp(party == ALICE ? wl[i].val : 0, ALICE) );
-    for (size_t i = 0; i < nx; i++) com_r.push_back( IntFp(party == ALICE ? wr[i].val : 0, ALICE) );
+    std::vector<Bit> com_l, com_r, com_o;
+    for (size_t i = 0; i < nx; i++) com_l.push_back( Bit(party == ALICE ? wl[i].val : 0, ALICE) );
+    for (size_t i = 0; i < nx; i++) com_r.push_back( Bit(party == ALICE ? wr[i].val : 0, ALICE) );
 
     // Alice and Bob generate o
-    for (size_t i = 0; i < nx; i++) com_o.push_back( com_l[i] * com_r[i] );
+    for (size_t i = 0; i < nx; i++) com_o.push_back( com_l[i] & com_r[i] );
 
-    // Bob issues random challenges via PRG over a seed
-    block alpha_seed; 
+    // Bob issues random challanges alpha and parties compute its powers
+    gf128bit alpha;
     if (party == ALICE) {
-		ZKFpExec::zk_exec->recv_data(&alpha_seed, sizeof(block));
+		ios[0]->recv_data(&alpha, sizeof(gf128bit));
     } else {
-        PRG().random_block(&alpha_seed, 1);
-        ZKFpExec::zk_exec->send_data(&alpha_seed, sizeof(block));
-    }
-    PRG prg_alpha(&alpha_seed);
-    std::vector<f61> alpha_power;
-    for (size_t i = 0; i < 2*nx+1; i++) {
-        block tmptmp;
-        prg_alpha.random_block(&tmptmp, 1);
-		uint64_t coeff = LOW64(tmptmp) % PR; 
-        alpha_power.push_back( f61(coeff) );
-    }
+		PRG().random_data(&alpha, sizeof(gf128bit));
+		ios[0]->send_data(&alpha, sizeof(gf128bit));	        
+        ios[0]->flush();
+    }    
+    std::vector<gf128bit> alpha_power;
+    alpha_power.push_back(gf128bit().unit());
+    for (size_t i = 0; i < 2*nx; i++) alpha_power.push_back( alpha_power.back() * alpha );
 
     // Go over every single branch
-    std::vector<IntFp> bmac;
-    for (size_t bid = 0; bid < branch_size; bid++) bmac.push_back( cir[bid].robin_acc(com_in, com_l, com_r, com_o, alpha_power, PR - final_res.val) );
+    std::vector<ext_f2> bmac;
+    for (size_t bid = 0; bid < branch_size; bid++) bmac.push_back( cir[0].robin_acc(com_in, com_l, com_r, com_o, alpha_power, final_res) );
+
+    // for (size_t bid = 0; bid < branch_size; bid++) cout << bid << ": " << bmac[bid].val.val << std::endl;
+    // testing codes
+    // if (party == BOB) {
+    //     ios[0]->send_data(&delta, sizeof(block));
+    //     ios[0]->flush();
+    // } else {
+    //     ios[0]->recv_data(&delta, sizeof(block));
+    // }
+
+    // if (party == ALICE) {
+    //     for (size_t bid = 0; bid < branch_size; bid++) {
+    //         cout << bid << ": " << (bmac[bid].val * gf128bit(delta) + bmac[bid].key).val << endl;
+    //     }            
+    // } else {
+    //     for (size_t bid = 0; bid < branch_size; bid++) {
+    //         cout << bid << ": " << bmac[bid].key.val << endl;
+    //     }
+    // }
 
     // prove that the product is 0
-    IntFp final_prod = IntFp(1, PUBLIC);
-    for (size_t bid = 0; bid < branch_size; bid++) final_prod = final_prod * bmac[bid];
-    batch_reveal_check_zero(&final_prod, 1);
-
-	finalize_zk_arith<BoolIO<NetIO>>();
+    prove_product_zero_it(ios, party, bmac);
+    
+	finalize_zk_bool<BoolIO<NetIO>>();
 	auto timeuse = time_from(start);	
 	cout << init_time+timeuse << " us\t" << party << " " << endl;
 	std::cout << std::endl;
