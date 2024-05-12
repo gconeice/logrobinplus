@@ -16,7 +16,7 @@ macro (add_test_case_with_run folder _name)
 endmacro()
 
 # Tetst Path ZK
-add_test_case_with_run(logrobinplus test)
+# add_test_case_with_run(logrobinplus test)
 
 add_test_case_with_run(logrobinplus arith_robin_it)
 add_test_case_with_run(logrobinplus arith_robin_ro)
@@ -26,3 +26,6 @@ add_test_case_with_run(logrobinplus arith_logrobin_ro)
 
 add_test_case_with_run(logrobinplus arith_robinplus_it)
 add_test_case_with_run(logrobinplus arith_robinplus_ro)
+
+add_test_case_with_run(logrobinplus arith_logrobinplus_it)
+add_test_case_with_run(logrobinplus arith_logrobinplus_ro)

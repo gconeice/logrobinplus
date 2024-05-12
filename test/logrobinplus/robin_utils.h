@@ -374,7 +374,7 @@ void prove01vector_ro(int party, std::vector<IntFp> x, f61 delta) {
 }
 
 
-// procedure for p to compute the coefficients
+// procedure for (LogRobin) p to compute the coefficients
 void compPcoeff(size_t depth, size_t id, size_t cur, std::vector<IntFp> &delta, std::vector<IntFp> &bmac, std::vector<f61> &final_acc, std::vector<f61> &tmp_acc) {
     // base case, accumulate
     if (depth == delta.size()) {
@@ -405,6 +405,43 @@ void compPcoeff(size_t depth, size_t id, size_t cur, std::vector<IntFp> &delta, 
         for (size_t i = 0; i < tmp_acc.size(); i++) tmp[i] += tmp_acc[i] * f61( HIGH64(delta[depth].value) );
     }
     compPcoeff(depth+1, id >> 1, cur + (1 << depth), delta, bmac, final_acc, tmp);
+}
+
+// procedure for (LogRobin++) p to compute the coefficients
+void compPcoeff(size_t depth, size_t id, size_t cur, std::vector<IntFp> &delta, std::vector<f61Triple> &M, std::vector<std::vector<f61>> &final_acc, std::vector<f61> &tmp_acc) {
+    // base case, accumulate
+    if (depth == delta.size()) {
+        f61 cur_value = M[cur].coef[2];
+        for (size_t i = 0; i < tmp_acc.size(); i++) final_acc[i][2] += cur_value * tmp_acc[i];
+        cur_value = M[cur].coef[1];
+        for (size_t i = 0; i < tmp_acc.size(); i++) final_acc[i][1] += cur_value * tmp_acc[i];    
+        cur_value = M[cur].coef[0];
+        for (size_t i = 0; i < tmp_acc.size(); i++) final_acc[i][0] += cur_value * tmp_acc[i];        
+        return;
+    }
+    size_t last_id = id % 2;
+    std::vector<f61> tmp;
+    // go up, i.e., cur = cur*2
+    tmp.clear();
+    if (last_id == 0) { // up = X-\delta_depth
+        tmp.push_back( f61::zero() );
+        for (size_t i = 0; i < tmp_acc.size() - 1; i++) tmp.push_back( tmp_acc[i] );
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp[i] += tmp_acc[i] * f61( PR - HIGH64(delta[depth].value) );
+    } else { // up = -\delta_depth
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp.push_back( tmp_acc[i] * f61( PR - HIGH64(delta[depth].value) ) );
+    }
+    compPcoeff(depth+1, id >> 1, cur, delta, M, final_acc, tmp);
+
+    // go down, i.e., cur = cur*2+1
+    tmp.clear();
+    if (last_id == 0) { // down = \delta_depth
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp.push_back( tmp_acc[i] * f61( HIGH64(delta[depth].value) ) );
+    } else { // down = X+\delta_depth
+        tmp.push_back( f61::zero() );
+        for (size_t i = 0; i < tmp_acc.size() - 1; i++) tmp.push_back( tmp_acc[i] );
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp[i] += tmp_acc[i] * f61( HIGH64(delta[depth].value) );
+    }
+    compPcoeff(depth+1, id >> 1, cur + (1 << depth), delta, M, final_acc, tmp);
 }
 
 // procedure for parties to expand the pathmat
