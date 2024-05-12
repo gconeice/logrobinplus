@@ -33,5 +33,8 @@ add_test_case_with_run(logrobinplus arith_logrobinplus_ro)
 add_test_case_with_run(logrobinplus bool_robin_it)
 add_test_case_with_run(logrobinplus bool_robin_ro)
 
+add_test_case_with_run(logrobinplus bool_logrobin_it)
+add_test_case_with_run(logrobinplus bool_logrobin_ro)
+
 add_test_case_with_run(logrobinplus bool_robinplus_it)
 add_test_case_with_run(logrobinplus bool_robinplus_ro)

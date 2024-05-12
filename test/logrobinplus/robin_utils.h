@@ -459,7 +459,7 @@ public:
 
 // this procedure is used to prove that all the elements inside IT-MACs \vec{x} is a 01 vector
 // the IT version
-void prove01vector_it(int party, std::vector<IntFp> x, f61 delta) {
+void prove01vector_it(int party, std::vector<IntFp> &x, f61 delta) {
     // Bob issues random challanges alpha
     uint64_t alpha;
     if (party == ALICE) {
@@ -506,10 +506,9 @@ void prove01vector_it(int party, std::vector<IntFp> x, f61 delta) {
     }
 }
 
-
 // this procedure is used to prove that all the elements inside IT-MACs \vec{x} is a 01 vector
 // the RO version
-void prove01vector_ro(int party, std::vector<IntFp> x, f61 delta) {
+void prove01vector_ro(int party, std::vector<IntFp> &x, f61 delta) {
     // Bob issues random challenges via PRG over a seed
     block alpha_seed; 
     if (party == ALICE) {
@@ -590,6 +589,38 @@ void compPcoeff(size_t depth, size_t id, size_t cur, std::vector<IntFp> &delta, 
     compPcoeff(depth+1, id >> 1, cur + (1 << depth), delta, bmac, final_acc, tmp);
 }
 
+// procedure for (LogRobin) p to compute the coefficients
+void compPcoeff(size_t depth, size_t id, size_t cur, std::vector<ext_f2> &delta, std::vector<ext_f2> &bmac, std::vector<gf128bit> &final_acc, std::vector<gf128bit> &tmp_acc) {
+    // base case, accumulate
+    if (depth == delta.size()) {
+        for (size_t i = 0; i < final_acc.size(); i++) final_acc[i] += bmac[cur].val * tmp_acc[i];
+        return;
+    }
+    size_t last_id = id % 2;
+    std::vector<gf128bit> tmp;
+    // go up, i.e., cur = cur*2
+    tmp.clear();
+    if (last_id == 0) { // up = X-\delta_depth
+        tmp.push_back( gf128bit::zero() );
+        for (size_t i = 0; i < tmp_acc.size() - 1; i++) tmp.push_back( tmp_acc[i] );
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp[i] += tmp_acc[i] * delta[depth].val;
+    } else { // up = -\delta_depth
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp.push_back( tmp_acc[i] * delta[depth].val );
+    }
+    compPcoeff(depth+1, id >> 1, cur, delta, bmac, final_acc, tmp);
+
+    // go down, i.e., cur = cur*2+1
+    tmp.clear();
+    if (last_id == 0) { // down = \delta_depth
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp.push_back( tmp_acc[i] * delta[depth].val );
+    } else { // down = X+\delta_depth
+        tmp.push_back( gf128bit::zero() );
+        for (size_t i = 0; i < tmp_acc.size() - 1; i++) tmp.push_back( tmp_acc[i] );
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp[i] += tmp_acc[i] * delta[depth].val;
+    }
+    compPcoeff(depth+1, id >> 1, cur + (1 << depth), delta, bmac, final_acc, tmp);
+}
+
 // procedure for (LogRobin++) p to compute the coefficients
 void compPcoeff(size_t depth, size_t id, size_t cur, std::vector<IntFp> &delta, std::vector<f61Triple> &M, std::vector<std::vector<f61>> &final_acc, std::vector<f61> &tmp_acc) {
     // base case, accumulate
@@ -636,6 +667,19 @@ void expand_pathmat(size_t depth, size_t cur, f61 acc, std::vector<f61> &row, st
     }
     // go up
     expand_pathmat(depth+1, cur, acc * (Lambda + f61::minor(row[depth].val)), row, expand_vec, Lambda);
+    // go down
+    expand_pathmat(depth+1, cur + (1 << depth), acc * row[depth], row, expand_vec, Lambda);
+}
+
+// procedure for parties to expand the pathmat
+void expand_pathmat(size_t depth, size_t cur, gf128bit acc, std::vector<gf128bit> &row, std::vector<gf128bit> &expand_vec, gf128bit &Lambda) {
+    // base case, accumulate
+    if (depth == row.size()) {
+        expand_vec[cur] = acc;
+        return;
+    }
+    // go up
+    expand_pathmat(depth+1, cur, acc * (Lambda + row[depth]), row, expand_vec, Lambda);
     // go down
     expand_pathmat(depth+1, cur + (1 << depth), acc * row[depth], row, expand_vec, Lambda);
 }
