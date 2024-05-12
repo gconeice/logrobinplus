@@ -235,7 +235,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         // Bob add the randomization into acc_K
         f61 coeff_Lambda = f61::unit();
         for (size_t i = 0; i < log_branch_size; i++) {
-            acc_K += coeff_Lambda * f61(delta) * f61( LOW64(r[i][1].value) ) + coeff_Lambda * f61( LOW64(r[i][0].value) );
+            acc_K += coeff_Lambda * f61_delta * f61( LOW64(r[i][1].value) ) + coeff_Lambda * f61( LOW64(r[i][0].value) );
             acc_poly_coeff = acc_poly_coeff + (poly_coeff[i] * coeff_Lambda.val);
             acc_K_2 += row1[i] * coeff_Lambda * f61_delta;
             acc_K_2 += row2[i] * coeff_Lambda * f61_delta_2;

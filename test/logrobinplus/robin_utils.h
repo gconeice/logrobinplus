@@ -658,6 +658,40 @@ void compPcoeff(size_t depth, size_t id, size_t cur, std::vector<IntFp> &delta, 
     compPcoeff(depth+1, id >> 1, cur + (1 << depth), delta, M, final_acc, tmp);
 }
 
+// procedure for (LogRobin++) p to compute the coefficients
+void compPcoeff(size_t depth, size_t id, size_t cur, std::vector<ext_f2> &delta, std::vector<gf128bitTriple> &M, std::vector<std::vector<gf128bit>> &final_acc, std::vector<gf128bit> &tmp_acc) {
+    // base case, accumulate
+    if (depth == delta.size()) {
+        for (size_t i = 0; i < tmp_acc.size(); i++) final_acc[i][2] += M[cur].coef[2] * tmp_acc[i];
+        for (size_t i = 0; i < tmp_acc.size(); i++) final_acc[i][1] += M[cur].coef[1] * tmp_acc[i];    
+        for (size_t i = 0; i < tmp_acc.size(); i++) final_acc[i][0] += M[cur].coef[0] * tmp_acc[i];        
+        return;
+    }
+    size_t last_id = id % 2;
+    std::vector<gf128bit> tmp;
+    // go up, i.e., cur = cur*2
+    tmp.clear();
+    if (last_id == 0) { // up = X-\delta_depth
+        tmp.push_back( gf128bit::zero() );
+        for (size_t i = 0; i < tmp_acc.size() - 1; i++) tmp.push_back( tmp_acc[i] );
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp[i] += tmp_acc[i] * delta[depth].val;
+    } else { // up = -\delta_depth
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp.push_back( tmp_acc[i] * delta[depth].val );
+    }
+    compPcoeff(depth+1, id >> 1, cur, delta, M, final_acc, tmp);
+
+    // go down, i.e., cur = cur*2+1
+    tmp.clear();
+    if (last_id == 0) { // down = \delta_depth
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp.push_back( tmp_acc[i] * delta[depth].val );
+    } else { // down = X+\delta_depth
+        tmp.push_back( gf128bit::zero() );
+        for (size_t i = 0; i < tmp_acc.size() - 1; i++) tmp.push_back( tmp_acc[i] );
+        for (size_t i = 0; i < tmp_acc.size(); i++) tmp[i] += tmp_acc[i] * delta[depth].val;
+    }
+    compPcoeff(depth+1, id >> 1, cur + (1 << depth), delta, M, final_acc, tmp);
+}
+
 // procedure for parties to expand the pathmat
 void expand_pathmat(size_t depth, size_t cur, f61 acc, std::vector<f61> &row, std::vector<f61> &expand_vec, f61 &Lambda) {
     // base case, accumulate
