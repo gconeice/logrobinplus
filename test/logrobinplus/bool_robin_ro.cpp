@@ -106,18 +106,22 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     // Alice and Bob generate o
     for (size_t i = 0; i < nx; i++) com_o.push_back( com_l[i] & com_r[i] );
 
-    // Bob issues random challanges alpha and parties compute its powers
-    gf128bit alpha;
+    // Bob issues random challenges via PRG over a seed
+    block alpha_seed; 
     if (party == ALICE) {
-		ios[0]->recv_data(&alpha, sizeof(gf128bit));
+		ios[0]->recv_data(&alpha_seed, sizeof(block));
     } else {
-		PRG().random_data(&alpha, sizeof(gf128bit));
-		ios[0]->send_data(&alpha, sizeof(gf128bit));	        
+        PRG().random_block(&alpha_seed, 1);
+        ios[0]->send_data(&alpha_seed, sizeof(block));
         ios[0]->flush();
-    }    
+    }
+    PRG prg_alpha(&alpha_seed);
     std::vector<gf128bit> alpha_power;
-    alpha_power.push_back(gf128bit().unit());
-    for (size_t i = 0; i < 2*nx; i++) alpha_power.push_back( alpha_power.back() * alpha );
+    for (size_t i = 0; i < 2*nx+1; i++) {
+        block tmptmp;
+        prg_alpha.random_block(&tmptmp, 1);
+        alpha_power.push_back( gf128bit(tmptmp) );
+    }    
 
     // Go over every single branch
     std::vector<ext_f2> bmac;

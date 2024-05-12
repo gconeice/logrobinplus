@@ -118,6 +118,11 @@ class ext_f2{
 public:
     gf128bit val;
     gf128bit key;
+    static ext_f2 uniform() {
+        ext_f2 res;
+        emp::zkp_get_ope<BoolIO<NetIO>>(res.key.val, res.val.val);
+        return res;
+    }
 };
 
 class f61 {
@@ -324,6 +329,8 @@ public:
         if (getLSB(tmpbit.bit)) acc_res.val = acc_res.val + coeff.back();
         return acc_res;
     }    
+
+
 
     // this function accumulates the robinplus's styple quadratic correlation
     // this is for P or Alice
@@ -566,6 +573,214 @@ void expand_pathmat(size_t depth, size_t cur, f61 acc, std::vector<f61> &row, st
     expand_pathmat(depth+1, cur, acc * (Lambda + f61::minor(row[depth].val)), row, expand_vec, Lambda);
     // go down
     expand_pathmat(depth+1, cur + (1 << depth), acc * row[depth], row, expand_vec, Lambda);
+}
+
+// this function proves the multiplication is 0
+// Boolean -- extension over GF(2^128), it version
+void prove_product_zero_it(BoolIO<NetIO> *ios[1], int party, std::vector<ext_f2> &x) {
+    size_t x_size = x.size();
+    assert(x_size > 1);
+    std::vector<ext_f2> inter;
+    for (size_t i = 0; i < x_size-2; i++) inter.push_back( ext_f2::uniform() );
+    gf128bit delta = gf128bit( emp::get_bool_delta<BoolIO<NetIO>>(party) );
+
+    // ALICE/P commits to the intermedia values
+    if (party == ALICE) {
+        gf128bit acc = x[0].val;
+        for (size_t i = 1; i < x_size-1; i++) {
+            acc *= x[i].val;
+            gf128bit diff = acc + inter[i-1].val;
+            inter[i-1].val = acc;
+            ios[0]->send_data(&diff, sizeof(gf128bit));
+        }
+        ios[0]->flush();
+    } else {
+        for (size_t i = 0; i < x_size-2; i++) {
+            gf128bit diff;
+            ios[0]->recv_data(&diff, sizeof(gf128bit));
+            inter[i].key += diff * delta;
+        }
+    }
+
+    // finally, add a 0 inside inter
+    Bit zero(false, PUBLIC);
+    if (party == ALICE) {
+        ext_f2 tmp;
+        tmp.key = zero.bit;
+        inter.push_back(tmp);
+    } else {
+        ext_f2 tmp;
+        tmp.key = zero.bit;
+        inter.push_back(tmp);
+    }
+
+    // V issues random challenge to linearly combine all LPZKs
+    // Bob issues random challanges alpha and parties compute its powers
+    gf128bit alpha;
+    if (party == ALICE) {
+		ios[0]->recv_data(&alpha, sizeof(gf128bit));
+    } else {
+		PRG().random_data(&alpha, sizeof(gf128bit));
+		ios[0]->send_data(&alpha, sizeof(gf128bit));	        
+        ios[0]->flush();
+    }    
+    std::vector<gf128bit> alpha_power;
+    alpha_power.push_back(gf128bit().unit());
+    for (size_t i = 0; i < x_size-2; i++) alpha_power.push_back( alpha_power.back() * alpha );
+
+    // LPZK
+    if (party == ALICE) {
+        gf128bit C1, C0;
+
+        // the first multi
+        // x[0] * x[1] = inter[0]
+        C1 += x[0].val * x[1].key + x[0].key * x[1].val + inter[0].key;
+        C0 += x[0].key * x[1].key;
+
+        for (size_t i = 1; i < x_size-1; i++) {
+            // inter[i-1] * x[i+1] = inter[i]
+            C1 += alpha_power[i] * (inter[i-1].val * x[i+1].key + inter[i-1].key * x[i+1].val + inter[i].key);
+            C0 += alpha_power[i] * (inter[i-1].key * x[i+1].key);
+        }
+
+        // randomization
+        ext_f2 pad = ext_f2::uniform();
+        C1 += pad.val;
+        C0 += pad.key;
+
+        ios[0]->send_data(&C1, sizeof(gf128bit));
+        ios[0]->send_data(&C0, sizeof(gf128bit));
+        ios[0]->flush();        
+    } else {
+        gf128bit A, C1, C0;
+
+        // the first multi
+        // x[0] * x[1] = inter[0]
+        A += x[0].key * x[1].key + inter[0].key * delta;
+
+        for (size_t i = 1; i < x_size-1; i++) {
+            // inter[i-1] * x[i+1] = inter[i];
+            A += alpha_power[i] * (inter[i-1].key * x[i+1].key + inter[i].key * delta);
+        }
+
+        // randomization
+        ext_f2 pad = ext_f2::uniform();
+        A = A + pad.key;
+
+        ios[0]->recv_data(&C1, sizeof(gf128bit));
+        ios[0]->recv_data(&C0, sizeof(gf128bit));
+
+        // Check equlity
+        // std::cout << (C1*delta + C0).val << ' '  << A.val << std::endl;
+        assert(C1*delta + C0 == A);
+    }
+
+}
+
+// this function proves the multiplication is 0
+// Boolean -- extension over GF(2^128), RO version
+void prove_product_zero_ro(BoolIO<NetIO> *ios[1], int party, std::vector<ext_f2> &x) {
+    size_t x_size = x.size();
+    assert(x_size > 1);
+    std::vector<ext_f2> inter;
+    for (size_t i = 0; i < x_size-2; i++) inter.push_back( ext_f2::uniform() );
+    gf128bit delta = gf128bit( emp::get_bool_delta<BoolIO<NetIO>>(party) );
+
+    // ALICE/P commits to the intermedia values
+    if (party == ALICE) {
+        gf128bit acc = x[0].val;
+        for (size_t i = 1; i < x_size-1; i++) {
+            acc *= x[i].val;
+            gf128bit diff = acc + inter[i-1].val;
+            inter[i-1].val = acc;
+            ios[0]->send_data(&diff, sizeof(gf128bit));
+        }
+        ios[0]->flush();
+    } else {
+        for (size_t i = 0; i < x_size-2; i++) {
+            gf128bit diff;
+            ios[0]->recv_data(&diff, sizeof(gf128bit));
+            inter[i].key += diff * delta;
+        }
+    }
+
+    // finally, add a 0 inside inter
+    Bit zero(false, PUBLIC);
+    if (party == ALICE) {
+        ext_f2 tmp;
+        tmp.key = zero.bit;
+        inter.push_back(tmp);
+    } else {
+        ext_f2 tmp;
+        tmp.key = zero.bit;
+        inter.push_back(tmp);
+    }
+
+    // V issues random challenge to linearly combine all LPZKs
+    // Bob issues random challenges via PRG over a seed
+    block alpha_seed; 
+    if (party == ALICE) {
+		ios[0]->recv_data(&alpha_seed, sizeof(block));
+    } else {
+        PRG().random_block(&alpha_seed, 1);
+        ios[0]->send_data(&alpha_seed, sizeof(block));
+        ios[0]->flush();
+    }
+    PRG prg_alpha(&alpha_seed);
+    std::vector<gf128bit> alpha_power;
+    for (size_t i = 0; i < x_size-1; i++) {
+        block tmptmp;
+        prg_alpha.random_block(&tmptmp, 1);
+        alpha_power.push_back( gf128bit(tmptmp) );
+    }    
+
+    // LPZK
+    if (party == ALICE) {
+        gf128bit C1, C0;
+
+        // the first multi
+        // x[0] * x[1] = inter[0]
+        C1 += alpha_power[0] * (x[0].val * x[1].key + x[0].key * x[1].val + inter[0].key);
+        C0 += alpha_power[0] * x[0].key * x[1].key;
+
+        for (size_t i = 1; i < x_size-1; i++) {
+            // inter[i-1] * x[i+1] = inter[i]
+            C1 += alpha_power[i] * (inter[i-1].val * x[i+1].key + inter[i-1].key * x[i+1].val + inter[i].key);
+            C0 += alpha_power[i] * (inter[i-1].key * x[i+1].key);
+        }
+
+        // randomization
+        ext_f2 pad = ext_f2::uniform();
+        C1 += pad.val;
+        C0 += pad.key;
+
+        ios[0]->send_data(&C1, sizeof(gf128bit));
+        ios[0]->send_data(&C0, sizeof(gf128bit));
+        ios[0]->flush();        
+    } else {
+        gf128bit A, C1, C0;
+
+        // the first multi
+        // x[0] * x[1] = inter[0]
+        A += alpha_power[0] * (x[0].key * x[1].key + inter[0].key * delta);
+
+        for (size_t i = 1; i < x_size-1; i++) {
+            // inter[i-1] * x[i+1] = inter[i];
+            A += alpha_power[i] * (inter[i-1].key * x[i+1].key + inter[i].key * delta);
+        }
+
+        // randomization
+        ext_f2 pad = ext_f2::uniform();
+        A = A + pad.key;
+
+        ios[0]->recv_data(&C1, sizeof(gf128bit));
+        ios[0]->recv_data(&C0, sizeof(gf128bit));
+
+        // Check equlity
+        // std::cout << (C1*delta + C0).val << ' '  << A.val << std::endl;
+        assert(C1*delta + C0 == A);
+    }
+
 }
 
 #endif
