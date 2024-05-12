@@ -22,52 +22,102 @@
 	#include <mach/mach.h>
 #endif
 
-class f5 {
+class f2 {
 public:
-    int val;
+    bool val;
 
-    f5() {val = 0;}
-    f5(int val) : val(((val%5)+5)%5) {}
+    f2() {val = 0;}
+    f2(bool val) : val(val) {}
 
-    static f5 minor(int x) {
-        x = -x;
-        x = ((x % 5) + 5) % 5;
-        return x;
+    static f2 minor(bool x) {
+        return f2(x^1);
     }
 
-    f5 & operator+= (f5 const & rhs) { 
-        val += rhs.val; 
-        val %= 5;
+    f2 minor() {
+        return f2(val^1);
+    }
+
+    f2 & operator+= (f2 const & rhs) { 
+        val ^= rhs.val; 
         return *this; 
     }
-    f5 & operator+= (f5 && rhs) { 
-        val += rhs.val;
-        val %= 5;
+    f2 & operator+= (f2 && rhs) { 
+        val ^= rhs.val;
         return *this;
     }
-    f5 & operator*= (f5 const & rhs) {
-        val *= rhs.val;
-        val %= 5;
+    f2 & operator*= (f2 const & rhs) {
+        val &= rhs.val;
         return *this;
     }
-    f5 & operator*= (f5 && rhs) {
-        val *= rhs.val;
-        val %= 5;
+    f2 & operator*= (f2 && rhs) {
+        val &= rhs.val;
         return *this;
     }
 
-    f5 operator+(f5 rhs) &  { return rhs += *this; }
-    f5 operator+(f5 rhs) && { return rhs += std::move(*this); }
-    f5 operator*(f5 rhs) &  { return rhs *= *this; }
-    f5 operator*(f5 rhs) && { return rhs *= std::move(*this); }
+    f2 operator+(f2 rhs) &  { return rhs += *this; }
+    f2 operator+(f2 rhs) && { return rhs += std::move(*this); }
+    f2 operator*(f2 rhs) &  { return rhs *= *this; }
+    f2 operator*(f2 rhs) && { return rhs *= std::move(*this); }
 
-    static f5 unit() {
-        return f5(1);
+    static f2 unit() {
+        return f2(1);
     }
 
-    static f5 zero() {
-        return f5(0);
+    static f2 zero() {
+        return f2(0);
     }
+};
+
+class gf128bit {
+public:
+    block val;
+
+    gf128bit() {val = makeBlock(0, 0);}
+    gf128bit(block val) : val(val) {}
+
+    static gf128bit minor(block x) {
+        return gf128bit(x);
+    }
+
+    gf128bit & operator+= (gf128bit const & rhs) { 
+        val ^= rhs.val; 
+        return *this; 
+    }
+    gf128bit & operator+= (gf128bit && rhs) { 
+        val ^= rhs.val;
+        return *this;
+    }
+    gf128bit & operator*= (gf128bit const & rhs) {
+        block tmp;
+        gfmul(val, rhs.val, &tmp);
+        val = tmp;
+        return *this;
+    }
+    gf128bit & operator*= (gf128bit && rhs) {
+        block tmp;
+        gfmul(val, rhs.val, &tmp);
+        val = tmp;
+        return *this;
+    }
+
+    gf128bit operator+(gf128bit rhs) &  { return rhs += *this; }
+    gf128bit operator+(gf128bit rhs) && { return rhs += std::move(*this); }
+    gf128bit operator*(gf128bit rhs) &  { return rhs *= *this; }
+    gf128bit operator*(gf128bit rhs) && { return rhs *= std::move(*this); }
+
+    static gf128bit unit() {
+        return gf128bit( makeBlock(0, 1) );
+    }
+
+    static gf128bit zero() {
+        return gf128bit( makeBlock(0, 0) );
+    }
+};
+
+class ext_f2{
+public:
+    gf128bit val;
+    gf128bit key;
 };
 
 class f61 {
@@ -176,6 +226,29 @@ public:
         return w[w.size()-1];
     }
 
+    f2 f2_gen_wit(std::mt19937 &gen, std::vector<f2> &in, std::vector<f2> &l, std::vector<f2> &r, std::vector<f2> &o) {
+        std::uniform_int_distribution<> distr(0, 1);
+        std::vector<f2> w;
+        for (size_t i = 0; i < nin; i++) {
+            std::size_t in_val = distr(gen);
+            w.push_back(f2(in_val));
+            in.push_back(f2(in_val));
+        }
+        for (size_t i = 0; i < bank.size(); i++) {
+            if (bank[i].op == OPTYPE::ADD) {
+                f2 new_val = w[ bank[i].l ] + w[ bank[i].r ];
+                w.push_back(new_val);
+            } else {
+                f2 new_val = w[ bank[i].l ] * w[ bank[i].r ];
+                w.push_back(new_val);
+                l.push_back(w[bank[i].l]);
+                r.push_back(w[bank[i].r]);
+                o.push_back(new_val);
+            }
+        }
+        return w[w.size()-1];
+    }
+
     IntFp f61_zk_eval(std::vector<IntFp> &in) {
         assert(in.size() == nin);
         std::vector<IntFp> w;
@@ -188,6 +261,7 @@ public:
     }
 
     // this function accumulates the robin's style linear combination
+    // arith
     IntFp robin_acc(std::vector<IntFp> &in, std::vector<IntFp> &l, std::vector<IntFp> &r, std::vector<IntFp> &o, std::vector<f61> &coeff, uint64_t final_res) {
         assert(in.size() == nin);
         assert(l.size() == nx);
@@ -213,6 +287,43 @@ public:
         acc_res = acc_res + (w.back() + final_res) * coeff.back().val;
         return acc_res;
     }
+
+    // this function accumulates the robin's style linear combination
+    // bool
+    ext_f2 robin_acc(std::vector<Bit> &in, std::vector<Bit> &l, std::vector<Bit> &r, std::vector<Bit> &o, std::vector<gf128bit> &coeff, f2 final_res) {
+        assert(in.size() == nin);
+        assert(l.size() == nx);
+        assert(r.size() == nx);
+        assert(o.size() == nx);
+        assert(coeff.size() == 2*nx+1);
+
+        ext_f2 acc_res;
+
+        int acc_id = 0;
+        std::vector<Bit> w;
+        for (size_t i = 0; i < nin; i++) w.push_back(in[i]);
+        for (size_t i = 0; i < bank.size(); i++) {
+            if (bank[i].op == OPTYPE::ADD) w.push_back( w[bank[i].l] ^ w[bank[i].r] );
+            else {
+                // acc_res = acc_res + (w[bank[i].l] + l[acc_id].negate()) * coeff[2*acc_id].val;
+                // acc_res = acc_res + (w[bank[i].r] + r[acc_id].negate()) * coeff[2*acc_id+1].val;
+                Bit tmpbit;
+                tmpbit = w[bank[i].l] ^ l[acc_id];
+                acc_res.key = acc_res.key + gf128bit(tmpbit.bit) * coeff[2*acc_id];
+                if (getLSB(tmpbit.bit)) acc_res.val = acc_res.val + coeff[2*acc_id];
+                tmpbit = w[bank[i].r] ^ r[acc_id];
+                acc_res.key = acc_res.key + gf128bit(tmpbit.bit) * coeff[2*acc_id+1];
+                if (getLSB(tmpbit.bit)) acc_res.val = acc_res.val + coeff[2*acc_id+1];
+                w.push_back( o[acc_id++] );
+            }
+        }
+
+        // put up the output
+        Bit tmpbit = w.back() ^ Bit(final_res.val, PUBLIC);
+        acc_res.key = acc_res.key + gf128bit(tmpbit.bit) * coeff.back();
+        if (getLSB(tmpbit.bit)) acc_res.val = acc_res.val + coeff.back();
+        return acc_res;
+    }    
 
     // this function accumulates the robinplus's styple quadratic correlation
     // this is for P or Alice

@@ -29,3 +29,5 @@ add_test_case_with_run(logrobinplus arith_robinplus_ro)
 
 add_test_case_with_run(logrobinplus arith_logrobinplus_it)
 add_test_case_with_run(logrobinplus arith_logrobinplus_ro)
+
+add_test_case_with_run(logrobinplus bool_robin_it)

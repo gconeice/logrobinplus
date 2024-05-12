@@ -73,7 +73,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         std::random_device rd; // obtain a random number from hardware
         auto id_seed = rd();
         auto id_gen = std::mt19937(id_seed);        
-        std::uniform_int_distribution<> distr(0, branch_size);
+        std::uniform_int_distribution<> distr(0, branch_size-1);
         id = distr(id_gen);
     }
 
