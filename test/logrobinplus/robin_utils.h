@@ -114,7 +114,12 @@ public:
     }
 };
 
-class ext_f2{
+class gf128bitTriple {
+public:
+    gf128bit coef[3];
+};
+
+class ext_f2 {
 public:
     gf128bit val;
     gf128bit key;
@@ -330,8 +335,6 @@ public:
         return acc_res;
     }    
 
-
-
     // this function accumulates the robinplus's styple quadratic correlation
     // this is for P or Alice
     f61Triple robinplus_acc_P(std::vector<IntFp> &in, std::vector<IntFp> &o, std::vector<f61> &coeff, uint64_t final_res) {
@@ -365,6 +368,68 @@ public:
     }
 
     // this function accumulates the robinplus's styple quadratic correlation
+    // this is for P or Alice
+    gf128bitTriple robinplus_acc_P(std::vector<Bit> &in, std::vector<Bit> &o, std::vector<gf128bit> &coeff, f2 final_res) {
+        assert(in.size() == nin);
+        assert(o.size() == nx);
+        assert(coeff.size() == nx+1);
+        gf128bitTriple res;
+
+        int acc_id = 0;
+        std::vector<Bit> w;
+        for (size_t i = 0; i < nin; i++) w.push_back(in[i]);
+        for (size_t i = 0; i < bank.size(); i++) {
+            if (bank[i].op == OPTYPE::ADD) w.push_back( w[bank[i].l] ^ w[bank[i].r] );
+            else {
+                bool lsb_l = getLSB(w[bank[i].l].bit);
+                bool lsb_r = getLSB(w[bank[i].r].bit);
+                bool lsb_o = getLSB(o[acc_id].bit);
+                if ( (lsb_l & lsb_r) ^ lsb_o ) res.coef[2] += coeff[acc_id];
+                if (lsb_l) res.coef[1] += coeff[acc_id] * gf128bit( w[bank[i].r].bit );
+                if (lsb_r) res.coef[1] += coeff[acc_id] * gf128bit( w[bank[i].l].bit );
+                res.coef[1] += coeff[acc_id] * gf128bit( o[acc_id].bit );
+                res.coef[0] += coeff[acc_id] * gf128bit( w[bank[i].l].bit ) * gf128bit( w[bank[i].r].bit );
+                w.push_back( o[acc_id++] );
+            }
+        }
+
+        // put up the output
+        Bit fout = w.back() ^ Bit(final_res.val, PUBLIC);
+        Bit zero = (false, PUBLIC);
+        bool lsb_fout = getLSB(fout.bit);
+        if (lsb_fout) res.coef[2] += coeff[acc_id];
+        res.coef[1] += coeff[acc_id] * gf128bit( zero.bit );
+        res.coef[0] += coeff[acc_id] * gf128bit( fout.bit ) * gf128bit( fout.bit );
+        return res;
+    }    
+
+    // this function accumulates the robinplus's styple quadratic correlation
+    // this is for V or Bob
+    gf128bit robinplus_acc_V(std::vector<Bit> &in, std::vector<Bit> &o, std::vector<gf128bit> &coeff, f2 final_res, gf128bit delta) {
+        assert(in.size() == nin);
+        assert(o.size() == nx);
+        assert(coeff.size() == nx+1);
+        gf128bit res;
+
+        int acc_id = 0;
+        std::vector<Bit> w;
+        for (size_t i = 0; i < nin; i++) w.push_back(in[i]);
+        for (size_t i = 0; i < bank.size(); i++) {
+            if (bank[i].op == OPTYPE::ADD) w.push_back( w[bank[i].l] ^ w[bank[i].r] );
+            else {
+                res += coeff[acc_id] * ( gf128bit( w[bank[i].l].bit) * gf128bit( w[bank[i].r].bit ) + gf128bit( o[acc_id].bit ) * delta );
+                w.push_back( o[acc_id++] );
+            }
+        }
+
+        // put up the output
+        Bit fout = w.back() ^ Bit(final_res.val, PUBLIC);
+        Bit zero = (false, PUBLIC);
+        res += coeff[acc_id] * ( gf128bit( fout.bit ) * gf128bit( fout.bit ) + gf128bit( zero.bit ) * delta );
+        return res;
+    }
+
+    // this function accumulates the robinplus's styple quadratic correlation
     // this is for V or Bob
     f61 robinplus_acc_V(std::vector<IntFp> &in, std::vector<IntFp> &o, std::vector<f61> &coeff, uint64_t final_res, f61 delta) {
         assert(in.size() == nin);
@@ -388,7 +453,7 @@ public:
         IntFp zero(0, PUBLIC);
         res += coeff[acc_id] * ( f61( LOW64(fout.value) ) * f61( LOW64(fout.value) ) + f61( LOW64(zero.value) ) * delta );
         return res;
-    }
+    }    
 
 };
 
