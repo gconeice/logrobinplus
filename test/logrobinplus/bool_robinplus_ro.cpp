@@ -163,7 +163,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         }
         com_Q.push_back(tmp);
     }
-    
+
     // P proves that the product is 0
     prove_product_zero_ro(ios, party, com_Q);
 
@@ -171,16 +171,18 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     // Bob issues random challanges alpha and parties compute its powers
     block beta_seed; 
     if (party == ALICE) {
-		ZKFpExec::zk_exec->recv_data(&beta_seed, sizeof(block));
+		ios[0]->recv_data(&beta_seed, sizeof(block));
     } else {
         PRG().random_block(&beta_seed, 1);
-        ZKFpExec::zk_exec->send_data(&beta_seed, sizeof(block));
+        ios[0]->send_data(&beta_seed, sizeof(block));
+        ios[0]->flush();
     }
     PRG prg_beta(&beta_seed);
     gf128bitTriple acc_M;
     gf128bit acc_K;
     gf128bit beta_coeff;
     ext_f2 acc_Q;
+
     if (party == ALICE) {
         for (size_t i = 0; i < branch_size; i++) {
             prg_beta.random_block(&beta_coeff.val, 1);
@@ -196,7 +198,6 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
             acc_K += beta_coeff * K[i];
         }
     }    
-
     // randomized to add ZK
     //std::vector<IntFp> bdelta;
     ext_f2 r2, r1;

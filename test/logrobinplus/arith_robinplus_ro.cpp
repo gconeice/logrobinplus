@@ -107,7 +107,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     if (party == ALICE) {
 		ZKFpExec::zk_exec->recv_data(&alpha_seed, sizeof(block));
     } else {
-        PRG().random_block(&alpha_seed, 1);
+        PRG().random_block(&alpha_seed, sizeof(block));
         ZKFpExec::zk_exec->send_data(&alpha_seed, sizeof(block));
     }
     PRG prg_alpha(&alpha_seed);

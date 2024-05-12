@@ -171,10 +171,11 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     // Bob issues random challanges alpha and parties compute its powers
     block beta_seed; 
     if (party == ALICE) {
-		ZKFpExec::zk_exec->recv_data(&beta_seed, sizeof(block));
+		ios[0]->recv_data(&beta_seed, sizeof(block));
     } else {
         PRG().random_block(&beta_seed, 1);
-        ZKFpExec::zk_exec->send_data(&beta_seed, sizeof(block));
+        ios[0]->send_data(&beta_seed, sizeof(block));
+        ios[0]->flush();
     }
     PRG prg_beta(&beta_seed);
     gf128bitTriple acc_M;
