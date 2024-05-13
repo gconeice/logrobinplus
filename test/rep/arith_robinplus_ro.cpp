@@ -119,7 +119,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     }
 
 	uint64_t com3 = comm(ios) - com1;
-	uint64_t com33 = comm3(ios) - com11;
+	uint64_t com33 = comm2(ios) - com11;
 	std::cout << "communication (B): " << com3 << std::endl;
 	std::cout << "communication (B): " << com33 << std::endl;    
 
@@ -134,7 +134,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     }
 
 	uint64_t com4 = comm(ios) - com1;
-	uint64_t com44 = comm3(ios) - com11;
+	uint64_t com44 = comm2(ios) - com11;
 	std::cout << "communication (B): " << com4 << std::endl;
 	std::cout << "communication (B): " << com44 << std::endl;    
 
