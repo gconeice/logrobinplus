@@ -41,6 +41,10 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     auto init_time = time_from(init_start);    
     setup_zk_arith<BoolIO<NetIO>>(ios, threads, party);
 
+    // obtain delta
+    uint64_t delta = LOW64(ZKFpExec::zk_exec->get_delta());
+	std::cout << "DELTA = " << delta << std::endl;    
+
     // set up randomized disjunctive circuits
     std::random_device::result_type cir_seed;
     if (party == ALICE) {
