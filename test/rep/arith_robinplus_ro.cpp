@@ -118,6 +118,11 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         alpha_power.push_back( f61(coeff) );
     }
 
+	uint64_t com3 = comm(ios) - com1;
+	uint64_t com33 = comm3(ios) - com11;
+	std::cout << "communication (B): " << com3 << std::endl;
+	std::cout << "communication (B): " << com33 << std::endl;    
+
     // Go over every single branch
     std::vector<f61Triple> M; // hold by P
     std::vector<f61> K; // hold by V
@@ -127,6 +132,11 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     } else {
         for (size_t bid = 0; bid < branch_size; bid++) K.push_back( cir[0].robinplus_acc_V(com_in, com_o, alpha_power, PR - final_res.val, f61(delta)) );
     }
+
+	uint64_t com4 = comm(ios) - com1;
+	uint64_t com44 = comm3(ios) - com11;
+	std::cout << "communication (B): " << com4 << std::endl;
+	std::cout << "communication (B): " << com44 << std::endl;    
 
     // Ask P to commit the quardratic term
     std::vector<IntFp> com_Q;
