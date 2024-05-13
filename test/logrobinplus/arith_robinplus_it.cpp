@@ -36,14 +36,10 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     // size_t log_branch_size = branch_size;
     branch_size = 1 << branch_size;
 
-    // testing communication
-    uint64_t com1 = comm(ios);
-	uint64_t com11 = comm2(ios);
-
     // initial zk exec
     auto init_start = clock_start();
-    setup_zk_arith<BoolIO<NetIO>>(ios, threads, party);
     auto init_time = time_from(init_start);
+    setup_zk_arith<BoolIO<NetIO>>(ios, threads, party);
 
     // obtain delta
     uint64_t delta = LOW64(ZKFpExec::zk_exec->get_delta());
@@ -92,6 +88,9 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         ZKFpExec::zk_exec->recv_data(&final_res, sizeof(f61));
     }
 
+    // testing communication
+    uint64_t com1 = comm(ios);
+	uint64_t com11 = comm2(ios);
     auto start = clock_start();
 
     // Alice commit the input

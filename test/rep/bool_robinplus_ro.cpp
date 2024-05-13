@@ -36,14 +36,12 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     // size_t log_branch_size = branch_size;
     branch_size = 1 << branch_size;
 
-    // testing communication
-    uint64_t com1 = comm(ios);
-	uint64_t com11 = comm2(ios);
+
 
     // initial zk exec
     auto init_start = clock_start();
+    auto init_time = time_from(init_start);    
     setup_zk_bool<BoolIO<NetIO>>(ios, threads, party);
-    auto init_time = time_from(init_start);
 
     // set up randomized disjunctive circuits
     std::random_device::result_type cir_seed;
@@ -92,7 +90,10 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     block delta = get_bool_delta<BoolIO<NetIO>>(party);
 
-    auto start = clock_start();
+    // testing communication
+    uint64_t com1 = comm(ios);
+	uint64_t com11 = comm2(ios);
+    auto start = clock_start();    
 
     // Alice commit the input
     std::vector<Bit> com_in;

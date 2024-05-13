@@ -36,14 +36,10 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
     // size_t log_branch_size = branch_size;
     branch_size = 1 << branch_size;
 
-    // testing communication
-    uint64_t com1 = comm(ios);
-	uint64_t com11 = comm2(ios);
-
     // initial zk exec
     auto init_start = clock_start();
-    setup_zk_bool<BoolIO<NetIO>>(ios, threads, party);
     auto init_time = time_from(init_start);
+    setup_zk_bool<BoolIO<NetIO>>(ios, threads, party);
 
     // set up randomized disjunctive circuits
     std::random_device::result_type cir_seed;
@@ -92,6 +88,9 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     block delta = get_bool_delta<BoolIO<NetIO>>(party);
 
+    // testing communication
+    uint64_t com1 = comm(ios);
+	uint64_t com11 = comm2(ios);
     auto start = clock_start();
 
     // Alice commit the input
@@ -144,7 +143,7 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     // prove that the product is 0
     prove_product_zero_it(ios, party, bmac);
-    
+
 	finalize_zk_bool<BoolIO<NetIO>>();
 	auto timeuse = time_from(start);	
 	cout << init_time+timeuse << " us\t" << party << " " << endl;
