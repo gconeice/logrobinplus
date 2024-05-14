@@ -88,6 +88,8 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
 
     block delta = get_bool_delta<BoolIO<NetIO>>(party);
 
+    ext_f2::uniform();
+
     // testing communication
     uint64_t com1 = comm(ios);
 	uint64_t com11 = comm2(ios);

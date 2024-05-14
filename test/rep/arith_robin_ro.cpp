@@ -88,6 +88,8 @@ void test_circuit_zk(BoolIO<NetIO> *ios[threads], int party, size_t branch_size,
         ZKFpExec::zk_exec->recv_data(&final_res, sizeof(f61));
     }
 
+    ZKFpExec::zk_exec->get_one_role();    
+
     // testing communication
     uint64_t com1 = comm(ios);
 	uint64_t com11 = comm2(ios);
