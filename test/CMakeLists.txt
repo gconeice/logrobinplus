@@ -16,31 +16,31 @@ macro (add_test_case_with_run folder _name)
 endmacro()
 
 # Test Robin/Robin++/LogRobin/LogRobin++
-# add_test_case_with_run(logrobinplus test)
+# add_test_case_with_run(rand test)
 
-add_test_case_with_run(logrobinplus arith_robin_it)
-add_test_case_with_run(logrobinplus arith_robin_ro)
+add_test_case_with_run(rand arith_robin_it)
+add_test_case_with_run(rand arith_robin_ro)
 
-add_test_case_with_run(logrobinplus arith_logrobin_it)
-add_test_case_with_run(logrobinplus arith_logrobin_ro)
+add_test_case_with_run(rand arith_logrobin_it)
+add_test_case_with_run(rand arith_logrobin_ro)
 
-add_test_case_with_run(logrobinplus arith_robinplus_it)
-add_test_case_with_run(logrobinplus arith_robinplus_ro)
+add_test_case_with_run(rand arith_robinplus_it)
+add_test_case_with_run(rand arith_robinplus_ro)
 
-add_test_case_with_run(logrobinplus arith_logrobinplus_it)
-add_test_case_with_run(logrobinplus arith_logrobinplus_ro)
+add_test_case_with_run(rand arith_logrobinplus_it)
+add_test_case_with_run(rand arith_logrobinplus_ro)
 
-add_test_case_with_run(logrobinplus bool_robin_it)
-add_test_case_with_run(logrobinplus bool_robin_ro)
+add_test_case_with_run(rand bool_robin_it)
+add_test_case_with_run(rand bool_robin_ro)
 
-add_test_case_with_run(logrobinplus bool_logrobin_it)
-add_test_case_with_run(logrobinplus bool_logrobin_ro)
+add_test_case_with_run(rand bool_logrobin_it)
+add_test_case_with_run(rand bool_logrobin_ro)
 
-add_test_case_with_run(logrobinplus bool_robinplus_it)
-add_test_case_with_run(logrobinplus bool_robinplus_ro)
+add_test_case_with_run(rand bool_robinplus_it)
+add_test_case_with_run(rand bool_robinplus_ro)
 
-add_test_case_with_run(logrobinplus bool_logrobinplus_it)
-add_test_case_with_run(logrobinplus bool_logrobinplus_ro)
+add_test_case_with_run(rand bool_logrobinplus_it)
+add_test_case_with_run(rand bool_logrobinplus_ro)
 
 # Test Robin/Robin++/LogRobin/LogRobin++
 # With same circuit for each branch to save memory
