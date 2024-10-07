@@ -31,4 +31,6 @@ After compiling, the executable would show up in `build/bin`.
 
 Test
 =====
-We will further explain how one can reproduce all results in the paper.
+See the Excel file `benchmark_summary.xlsx`, which includes the data to generate the tables and plots in our paper.
+
+See the file `ae_appendix.pdf`, which includes how to obtain the numbers in the Excel and paper step-by-step.
