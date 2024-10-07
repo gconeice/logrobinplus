@@ -19,7 +19,7 @@ Build and install
 
 Browsing the code
 =====
-`/test/logrobinplus` contains our core code for branches with different circuits.
+`/test/rand` contains our core code for branches with different circuits.
 
 `/test/rep` contains our core code for branches with a same circuit.
 
