@@ -1,7 +1,21 @@
-mkdir setup &&
-cd setup &&
-wget https://raw.githubusercontent.com/emp-toolkit/emp-readme/master/scripts/install.py &&
-python3 install.py --deps --tool --ot --zk &&
-cd .. &&
-sudo apt install -y emacs iperf iftop clang
+#!/bin/bash
 
+set -e
+rm -rf setup && mkdir setup
+cd setup
+
+git clone https://github.com/emp-toolkit/emp-tool.git
+cd emp-tool
+cmake . -DCMAKE_INSTALL_PREFIX=../
+make -j
+make install
+cd ..
+
+git clone https://github.com/emp-toolkit/emp-ot.git
+cd emp-ot
+cmake . -DCMAKE_INSTALL_PREFIX=../
+make -j
+make install
+cd ..
+
+cd ..
