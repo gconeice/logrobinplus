@@ -19,6 +19,10 @@ They can be installed using `apt-get` in a standard way:
 
 We recommend to install `iperf` to test for the simulated network as well.
 
+Hardware
+=====
+Our repo can be used on any hardware. However, to perform all experiments in the paper, the prover and the verifier each needs at least 16GB memory.
+
 Setup environment
 =====
 This includes installation of [emp-tool](https://github.com/emp-toolkit/emp-tool) and [emp-ot](https://github.com/emp-toolkit/emp-ot).
@@ -26,10 +30,14 @@ This includes installation of [emp-tool](https://github.com/emp-toolkit/emp-tool
 We provide the following script to install them under the folder `setup`:
 `bash setup.sh`
 
+The `-para` option can enable `-j` option in `make` (i.e., `bash setup.sh -para`); please do not use it on resource-constrained systems.
+
 Build and install
 =====
 We provide the following script to install them under the folder `build`:
 `bash install.sh`
+
+The `-para` option can enable `-j` option in `make` (i.e., `bash install.sh -para`); please do not use it on resource-constrained systems.
 
 Toy example
 =====
