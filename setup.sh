@@ -7,14 +7,22 @@ cd setup
 git clone https://github.com/emp-toolkit/emp-tool.git
 cd emp-tool
 cmake . -DCMAKE_INSTALL_PREFIX=../
-make -j
+if  [[ $1 = "-para" ]]; then
+    make -j
+else
+    make
+fi    
 make install
 cd ..
 
 git clone https://github.com/emp-toolkit/emp-ot.git
 cd emp-ot
 cmake . -DCMAKE_INSTALL_PREFIX=../
-make -j
+if  [[ $1 = "-para" ]]; then
+    make -j
+else
+    make
+fi   
 make install
 cd ..
 
